@@ -1,0 +1,48 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/RectangleArena.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/appearances/protos/Parquetry.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/robotis/turtlebot/protos/TurtleBot3Burger.proto"
+
+WorldInfo {
+}
+Viewpoint {
+  orientation -0.1953444487570792 0.4489656840794003 0.8719348375073156 0.9257152180424155
+  position -1.868781138217309 -1.9230369203245874 1.618990770164777
+}
+Background {
+  skyColor [
+    1 1 1
+  ]
+}
+DirectionalLight {
+  ambientIntensity 1
+  direction 0.1 -0.5 0.3
+}
+RectangleArena {
+  floorSize 5 5
+  floorAppearance Parquetry {
+    type "light strip"
+  }
+}
+TurtleBot3Burger {
+  translation 0.0015652080441700827 0.0001351096959653664 0.018381345566478836
+  rotation -0.0021213738268442512 -0.9999763268532421 0.006545647881202855 0.003961770137006594
+  controller "<extern>"
+  extensionSlot [
+    GPS {
+      name "GPS"
+    }
+    Camera {
+      translation 0.05 0 0
+      rotation 0 1 0 -0.261795307179586
+      name "CAMERA"
+      width 672
+      height 672
+      lens Lens {
+      }
+      focus Focus {
+      }
+    }
+  ]
+}

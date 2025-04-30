@@ -1,0 +1,127 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/RectangleArena.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/appearances/protos/Parquetry.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/robotis/turtlebot/protos/TurtleBot3Burger.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/tables/protos/Desk.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/computers/protos/Monitor.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/computers/protos/Keyboard.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/computers/protos/DesktopComputer.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/computers/protos/ComputerMouse.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/advertising_board/protos/AdvertisingBoard.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/animals/protos/Dog.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/traffic/protos/StopSign.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/plants/protos/BunchOfSunFlowers.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/street_furniture/protos/FireHydrant.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/street_furniture/protos/TrashContainer.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/traffic/protos/SpeedLimitSign.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/balls/protos/SoccerBall.proto"
+
+WorldInfo {
+  coordinateSystem "NUE"
+}
+Viewpoint {
+  orientation 0.2588278602456199 -0.615955613392843 -0.7440475932966386 5.251524241076547
+  position -2.719549295900128 -2.1311386100072354 2.7286207129869853
+}
+Background {
+  skyColor [
+    0.836835 0.863859 0.82237
+  ]
+  luminosity 0.5
+}
+RectangleArena {
+  floorSize 10 10
+  floorAppearance Parquetry {
+    type "light strip"
+  }
+}
+DirectionalLight {
+  direction 0 1 -1
+  intensity 2
+}
+DEF COMPUTER_DESK Group {
+  children [
+    ComputerMouse {
+      hidden linearVelocity_0 -0.4944874210871777 -23.63638057212048 9.570720946611592e-06
+      hidden angularVelocity_0 1.6231932845537274e-05 0.0002318622679295257 2.631109013625572
+      translation 1.170681756371917 -29.18331798994296 0.7100244255086864
+      rotation -1.3940788584197358e-05 -2.7458831562550346e-06 -0.9999999998990572 -1.589568590332842
+    }
+    DesktopComputer {
+      translation 2.56 -0.41 0.71
+      rotation 0 0 1 3.14159
+    }
+    Keyboard {
+      translation 2.43 0.16 0.72
+    }
+    Monitor {
+      translation 2.67 0.1 0.71
+      rotation 0 0 1 3.141592653589793
+    }
+    Desk {
+      translation 2.55 0 0
+    }
+  ]
+}
+StopSign {
+  translation 0 3.96 -0.11
+  rotation 0 0 1 -1.8325953071795862
+}
+FireHydrant {
+  translation -4.17 -0.64 0
+}
+SoccerBall {
+  hidden linearVelocity_0 0 -19.95563943427464 1.0167403517971738
+  hidden angularVelocity_0 6.810440179859406 0 0
+  translation -0.58 -25.21545788478965 2.4577710623198334
+  rotation 0.9999999999999999 0 0 3.1327537189067303
+}
+BunchOfSunFlowers {
+  translation 1.28 2.62 0
+}
+SpeedLimitSign {
+  translation 1.87477 -3.26902 0
+  rotation 0 0 1 2.3562
+}
+TrashContainer {
+  translation -4.14 0.92 0
+}
+Dog {
+  translation -2.44845 -2.72155 0
+  rotation 0 0 -1 0.261796
+}
+AdvertisingBoard {
+  translation -2.16918 3.33629 0
+  rotation 0 0 1 -1.3089953071795861
+  displayWidth 1
+  displayHeight 1
+  frameThickness 0.1
+}
+TurtleBot3Burger {
+  hidden position_0_0 4.924962074354407e-16
+  hidden position_0_1 2.1775617890244782e-16
+  hidden position_0_2 32.40636201336674
+  hidden position2_0_2 4.229892711734911e-05
+  hidden position3_0_2 -4.928479678086665e-05
+  hidden rotation_5 -0.9999999976652476 -6.380015929321266e-05 2.4475388479438534e-05 5.292749828800656
+  translation -0.5 0 0
+  rotation -2.347930000023336e-07 -8.166839999805774e-08 0.9999999999999691 0
+  controller "<extern>"
+  extensionSlot [
+    GPS {
+      name "GPS"
+    }
+    Camera {
+      translation 0.05 -0.01 0.01
+      rotation 0 1 0 -0.261795307179586
+      name "CAMERA"
+      width 672
+      height 672
+      lens Lens {
+      }
+      focus Focus {
+      }
+    }
+  ]
+}
