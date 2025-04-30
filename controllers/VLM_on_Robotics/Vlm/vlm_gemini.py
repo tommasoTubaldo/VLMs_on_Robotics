@@ -77,6 +77,25 @@ class GeminiAPI():
             },
         }
 
+        self.set_position_function = {
+            "name": "set_velocity",
+            "description": "Moves the robot by imposing the linear velocity of the right and left wheels.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "right_velocity": {
+                        "type": "number",
+                        "description": "Number between 0 and 1 that represents the percentage of total velocity of the right wheel.",
+                    },
+                    "left_velocity": {
+                        "type": "number",
+                        "description": "Number between 0 and 1 that represents the percentage of total velocity of the left wheel.",
+                    },
+                },
+                "required": ["right_velocity", "left_velocity"],
+            },
+        }
+
         # Configure the model with system instructions and tools
         self.tools = types.Tool(function_declarations=[
             self.set_gps_function,
