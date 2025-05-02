@@ -3,12 +3,17 @@
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/RectangleArena.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/appearances/protos/Parquetry.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/robotis/turtlebot/protos/TurtleBot3Burger.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/balls/protos/RobocupSoccerBall.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/advertising_board/protos/AdvertisingBoard.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/animals/protos/Dog.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/traffic/protos/StopSign.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/traffic/protos/StopPanel.proto"
 
 WorldInfo {
 }
 Viewpoint {
-  orientation -0.1953444487570792 0.4489656840794003 0.8719348375073156 0.9257152180424155
-  position -1.868781138217309 -1.9230369203245874 1.618990770164777
+  orientation -0.2605094962350742 0.5665016582783899 0.7817996377200375 1.0634103464260187
+  position -1.3054841333983052 -1.4506474399275326 1.684606601275288
 }
 Background {
   skyColor [
@@ -25,9 +30,51 @@ RectangleArena {
     type "light strip"
   }
 }
+StopSign {
+  translation 2.32084 0.0256632 0
+  rotation 0 0 1 3.14159
+  height 0.5
+  signBoards [
+    StopPanel {
+      translation 0 0 -1.067
+    }
+  ]
+}
+AdvertisingBoard {
+  translation -0.07 -2.07 0
+  rotation 0 0 1 -1.5707953071795862
+  displayWidth 1
+  displayHeight 1
+  frameThickness 0.1
+}
+Dog {
+  translation -1.8125 1.55396 0
+  rotation 0 0 1 -1.3089953071795861
+  scale 0.75
+}
+RobocupSoccerBall {
+  hidden linearVelocity_0 -3.4881034596392e-321 0 -1.427433096160119e-16
+  hidden angularVelocity_0 0 -5.81762297978068e-320 0
+  translation 0.9600444111600245 1.34 0.06967823200000005
+  rotation 0 -1 0 1.5707963267944154
+}
 TurtleBot3Burger {
-  translation 0.0015652080441700827 0.0001351096959653664 0.018381345566478836
-  rotation -0.0021213738268442512 -0.9999763268532421 0.006545647881202855 0.003961770137006594
+  hidden position_0_0 -2.825777306511954e-17
+  hidden position_0_1 -2.5405354375306973e-17
+  hidden position_0_2 17.375916690652353
+  hidden position2_0_2 -5.805214639693955
+  hidden position3_0_2 66.63560486512016
+  hidden linearVelocity_0 2.5992647862383443e-17 -3.677327151556925e-16 -6.883978378148925e-17
+  hidden angularVelocity_0 -1.1272939978701768e-15 1.1347923106152137e-15 5.942853555206383e-17
+  hidden linearVelocity_3 3.2314449944335887e-17 -3.7047208409016333e-16 3.1165248594691934e-16
+  hidden angularVelocity_3 1.3018065532495248e-14 9.663107537791084e-16 5.106757261239019e-17
+  hidden linearVelocity_4 3.085289498016071e-17 -1.7431657942298953e-16 -1.1842794465982934e-15
+  hidden angularVelocity_4 6.509035502323139e-15 9.868238052202547e-16 5.580976214890866e-17
+  hidden rotation_5 0.37933234472353394 0.5623587231796953 0.7347514128671333 3.3087528020495878
+  hidden linearVelocity_5 3.839771218731558e-18 -4.3087502820465135e-16 -3.412845613135442e-15
+  hidden angularVelocity_5 1.0774317157840861e-13 9.446683819427644e-16 0.010428197727072073
+  translation 0.20012096297829324 -3.009564042633404e-08 -0.00020956419915767535
+  rotation -4.4271727813865875e-06 -0.9999999992138582 -3.940410817402775e-05 0.004409027113620844
   controller "<extern>"
   extensionSlot [
     GPS {
