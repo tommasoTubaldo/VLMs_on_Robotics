@@ -10,34 +10,11 @@ class GeminiAPI():
     def __init__(self, model, temperature:float = 0.7, max_tokens:int = 1e5, generate_with_tools:bool = True):
         self.model = model
 
-        # Define the system instructions and the available tools
-        self.system_instruction = """
-        You are an AI Agent integrated into a mobile robot (TurtleBot3) operating in a physical environment.
+        # Load system behavior instructions from external text files
+        prompt_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'prompts'))
 
-        You receive user commands in natural language and must reason about the scene, environment, and robot state to assist the user effectively.
-        
-        Your core capabilities include:
-        
-        - Interpreting the surrounding scene using the robot’s camera.
-        - Accessing internal robot sensors (e.g., GPS) through available tools when needed.
-        - Controlling the robot by setting the absolute linear position of the left and right wheels using the set_position tool.
-        - Providing intelligent, context-aware responses based on visual inputs, sensor data, or both.
-        - Asking the user for clarification if a request is ambiguous, lacks necessary details (e.g., distance to move), or could have multiple interpretations.
-        
-        Movement Instructions:
-        
-        - When the user issues a command to move the robot (e.g., "move forward", "go backward", "turn left", "rotate right"), you must invoke the set_position tool.
-        - Use suitable values (in meters) for delta_right and delta_left to achieve the desired motion.
-          - Move forward → both deltas positive and equal (e.g., 0.2).
-          - Move backward → both deltas negative and equal.
-          - Turn left → right delta greater than left delta (e.g., right=0.2, left=0.05).
-          - Turn right → left delta greater than right delta.
-          - Rotate in place → set deltas to opposite signs (e.g., left=0.1, right=-0.1).
-        - If the user does not specify a distance or rotation magnitude, default to small increments (e.g., 0.2 meters).
-        - If uncertain about the user's intent (e.g., unclear which direction or how far), politely ask for clarification.
-        
-        Always translate user intent into concrete actions using available tools, ensuring safe and intelligent control of the robot.
-        """
+        with open(os.path.join(prompt_dir, "system_instruction.txt"), "r") as f:
+            self.system_instruction = f.read()
 
         # Function declarations for the model
         self.set_gps_function = {
@@ -77,7 +54,7 @@ class GeminiAPI():
             },
         }
 
-        self.set_position_function = {
+        self.set_velocity_function = {
             "name": "set_velocity",
             "description": "Moves the robot by imposing the linear velocity of the right and left wheels.",
             "parameters": {
@@ -85,14 +62,23 @@ class GeminiAPI():
                 "properties": {
                     "right_velocity": {
                         "type": "number",
-                        "description": "Number between 0 and 1 that represents the percentage of total velocity of the right wheel.",
+                        "description": "Number between 0 and 1 that represents the percentage of maximum velocity of the right wheel.",
                     },
                     "left_velocity": {
                         "type": "number",
-                        "description": "Number between 0 and 1 that represents the percentage of total velocity of the left wheel.",
+                        "description": "Number between 0 and 1 that represents the percentage of maximum velocity of the left wheel.",
                     },
                 },
                 "required": ["right_velocity", "left_velocity"],
+            },
+        }
+
+        self.set_response_completed = {
+            "name": "response_completed",
+            "description": "Execute this function when the robot response is completed or when asking for clarifications in order to let the user provide a new prompt or a response.",
+            "parameters": {
+              "type": "object",
+              "properties": {}
             },
         }
 
@@ -100,7 +86,9 @@ class GeminiAPI():
         self.tools = types.Tool(function_declarations=[
             self.set_gps_function,
             self.set_image_function,
-            self.set_position_function
+            #self.set_position_function,
+            self.set_velocity_function,
+            self.set_response_completed
         ])
 
         # Configure function calling mode
@@ -306,103 +294,99 @@ class GeminiAPI():
         Generates a response using the current conversation history and tools.
 
         :param robot: Robot instance
-        :param conversation_history: List of types.Content objects
+        :param conversation_history: List of types.
         :return: Prediction from Gemini
         """
-        start_time = time.time()
+        contents = list(conversation_history)
 
-        contents = list(conversation_history)  # Copy to allow mutation
+        while True:
+            # Call the model
+            start_time = time.time()
+            response = self.client.models.generate_content(
+                model=self.model,
+                config=self.config,
+                contents=contents
+            )
+            end_time = time.time()
 
-        # Call the model
-        response = self.client.models.generate_content(
-            model=self.model,
-            config=self.config,
-            contents=contents
-        )
+            # Check if tool call is made
+            for part in response.candidates[0].content.parts:
+                if part.text:
+                    print(Fore.BLUE + "\nAssistant:" + Style.RESET_ALL)
+                    print(textwrap.fill(part.text, width=100))
+                    print(Fore.YELLOW + f"[Inference time: {end_time - start_time:.2f} s]" + Style.RESET_ALL)
 
-        # Check if tool call is made
-        for part in response.candidates[0].content.parts:
-            if part.function_call:
-                tool_call = part.function_call
+                if part.function_call:
+                    tool_call = part.function_call
 
-                if tool_call.name == "get_gps_position":
-                    result = robot.get_gps_position(**tool_call.args)
-                    print(f"{Fore.MAGENTA}[Tool]{Style.RESET_ALL} GPS coordinates obtained: {result}")
+                    if tool_call.name == "get_gps_position":
+                        result = robot.get_gps_position(**tool_call.args)
+                        print(f"{Fore.MAGENTA}[Tool]{Style.RESET_ALL} GPS coordinates obtained: {result}")
 
-                    function_response_part = types.Part.from_function_response(
-                        name=tool_call.name,
-                        response={"result": result},
-                    )
+                        function_response_part = types.Part.from_function_response(name=tool_call.name,response={"result": result},)
 
-                    contents.append(types.Content(role="model", parts=[types.Part(function_call=tool_call)]))
-                    contents.append(types.Content(role="user", parts=[function_response_part]))
+                        contents.append(types.Content(role="model", parts=[types.Part(function_call=tool_call)]))
+                        contents.append(types.Content(role="user", parts=[function_response_part]))
 
-                elif tool_call.name == "get_image":
-                    result = robot.get_image(**tool_call.args)
-                    print(f"{Fore.MAGENTA}[Tool]{Style.RESET_ALL} Camera image obtained.")
+                    elif tool_call.name == "get_image":
+                        result = robot.get_image(**tool_call.args)
+                        print(f"{Fore.MAGENTA}[Tool]{Style.RESET_ALL} Camera image obtained.")
 
-                    result = self.convert_bgra_2_base64(result, robot.camera.getWidth(), robot.camera.getHeight())
+                        result = self.convert_bgra_2_base64(result, robot.camera.getWidth(), robot.camera.getHeight())
 
-                    function_response_part = types.Part(
-                        inline_data=types.Blob(mime_type="image/jpeg", data=result)
-                    )
+                        function_response_part = types.Part(inline_data=types.Blob(mime_type="image/jpeg", data=result))
 
-                    contents.append(types.Content(role="model", parts=[types.Part(function_call=tool_call)]))
-                    contents.append(types.Content(role="user", parts=[function_response_part]))
+                        contents.append(types.Content(role="model", parts=[types.Part(function_call=tool_call)]))
+                        contents.append(types.Content(role="user", parts=[function_response_part]))
 
-                elif tool_call.name == "set_position":
-                    robot.set_position(**tool_call.args)
-                    print(f"{Fore.MAGENTA}[Tool]{Style.RESET_ALL} Wheel position set to {tool_call.args}")
+                    elif tool_call.name == "set_position":
+                        robot.set_position(**tool_call.args)
+                        print(f"{Fore.MAGENTA}[Tool]{Style.RESET_ALL} Wheel position set to {tool_call.args}")
 
-                    # Append function call and result of the function execution to contents
-                    contents.append(types.Content(role="model", parts=[types.Part(function_call=tool_call)]))
-                    contents.append(types.Content(role="user", parts=[types.Part(text=f"Linear position of the wheels set to {tool_call.args}")]))
+                        # Append function call and result of the function execution to contents
+                        contents.append(types.Content(role="model", parts=[types.Part(function_call=tool_call)]))
+                        contents.append(types.Content(role="user", parts=[types.Part(text=f"Linear position of the wheels set to {tool_call.args}")]))
 
-                # Final response after tool use
-                final_response = self.client.models.generate_content(
-                    model=self.model,
-                    config=self.config,
-                    contents=contents
-                )
-                end_time = time.time()
-                return final_response, end_time - start_time
+                    elif tool_call.name == "set_velocity":
+                        robot.set_velocity(**tool_call.args)
+                        print(f"{Fore.MAGENTA}[Tool]{Style.RESET_ALL} Wheel velocity set to {tool_call.args}")
 
-        # If no tool was used, return initial response
-        end_time = time.time()
-        return response, end_time - start_time
+                        # Append function call and result of the function execution to contents
+                        contents.append(types.Content(role="model", parts=[types.Part(function_call=tool_call)]))
+                        contents.append(types.Content(role="user", parts=[types.Part(text=f"Linear velocity of the wheels set to {tool_call.args}")]))
+
+                    elif tool_call.name == "response_completed":
+                        return response, end_time - start_time
 
 
     async def chat_loop(self, robot):
         """Handle Gemini chat interaction in a single loop.
         """
-        print(Fore.CYAN + "----------   TurtleBot3 VLM Chat Interface   ----------" + Style.RESET_ALL)
-        print("Type 'exit' or 'quit' to end the session.\n")
+        print(Fore.CYAN + "\n----------   TurtleBot3 VLM Chat Interface   ----------" + Style.RESET_ALL)
+        print("Type 'exit' or 'quit' to end the session.")
 
         conversation_history = []
 
         while True:
-            user_input = await asyncio.to_thread(input, Fore.GREEN + "User: " + Style.RESET_ALL)
+            user_input = await asyncio.to_thread(input, Fore.GREEN + "\n\nUser: " + Style.RESET_ALL)
             user_input = user_input.strip()
 
+            # Exit condition
             if user_input.lower() in ["exit", "quit"]:
-                print(Fore.CYAN + "\nSession ended.\n")
+                print(Fore.CYAN + "\nSession ended.")
+
+                # Count input tokens from conversation history - to compare it with the
+                total_tokens = self.client.models.count_tokens(model=self.model, contents=conversation_history)
+                print(Fore.YELLOW + f"[Total input tokens: {total_tokens.total_tokens}]")
+
                 for task in asyncio.all_tasks():
                     task.cancel()
                 break
 
-            conversation_history.append(
-                types.Content(role="user", parts=[types.Part(text=user_input)])
-            )
+            # Add to the conversation history the current user prompt
+            conversation_history.append(types.Content(role="user", parts=[types.Part(text=user_input)]))
 
             # Call Gemini in non-blocking way
             response, comp_time = await asyncio.to_thread(self.chat, robot, conversation_history)
             model_content = response.candidates[0].content
             conversation_history.append(model_content)
-
-            model_reply = "".join(
-                part.text for part in model_content.parts if hasattr(part, "text") and part.text
-            )
-
-            print(Fore.BLUE + "\nAssistant:" + Style.RESET_ALL)
-            print(textwrap.fill(model_reply, width=100))
-            print(Fore.YELLOW + f"\n[Response time: {comp_time:.2f} seconds]\n")
