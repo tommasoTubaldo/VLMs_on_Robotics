@@ -16,6 +16,8 @@ class GeminiAPI():
         with open(os.path.join(prompt_dir, "system_instruction.txt"), "r") as f:
             self.system_instruction = f.read()
 
+        self.conversation_history = []
+
         # Function declarations for the model
         self.set_gps_function = {
             "name": "get_gps_position",
@@ -289,7 +291,7 @@ class GeminiAPI():
         return final_response, comp_time
 
 
-    def chat(self, robot, conversation_history):
+    def chat(self, robot):
         """
         Generates a response using the current conversation history and tools.
 
@@ -297,7 +299,7 @@ class GeminiAPI():
         :param conversation_history: List of types.
         :return: Prediction from Gemini
         """
-        contents = list(conversation_history)
+        contents = list(self.conversation_history)
 
         while True:
             # Call the model
@@ -315,6 +317,8 @@ class GeminiAPI():
                     print(Fore.BLUE + "\nAssistant:" + Style.RESET_ALL)
                     print(textwrap.fill(part.text, width=100))
                     print(Fore.YELLOW + f"[Inference time: {end_time - start_time:.2f} s]" + Style.RESET_ALL)
+
+                    contents.append(types.Content(role="user", parts=[types.Part(text=part.text)]))
 
                 if part.function_call:
                     tool_call = part.function_call
@@ -356,6 +360,7 @@ class GeminiAPI():
                         contents.append(types.Content(role="user", parts=[types.Part(text=f"Linear velocity of the wheels set to {tool_call.args}")]))
 
                     elif tool_call.name == "response_completed":
+                        self.conversation_history = contents
                         return response, end_time - start_time
 
 
@@ -365,8 +370,6 @@ class GeminiAPI():
         print(Fore.CYAN + "\n----------   TurtleBot3 VLM Chat Interface   ----------" + Style.RESET_ALL)
         print("Type 'exit' or 'quit' to end the session.")
 
-        conversation_history = []
-
         while True:
             user_input = await asyncio.to_thread(input, Fore.GREEN + "\n\nUser: " + Style.RESET_ALL)
             user_input = user_input.strip()
@@ -375,18 +378,19 @@ class GeminiAPI():
             if user_input.lower() in ["exit", "quit"]:
                 print(Fore.CYAN + "\nSession ended.")
 
-                # Count input tokens from conversation history - to compare it with the
-                total_tokens = self.client.models.count_tokens(model=self.model, contents=conversation_history)
-                print(Fore.YELLOW + f"[Total input tokens: {total_tokens.total_tokens}]")
+                if self.conversation_history:
+                    # Count input tokens from conversation history
+                    total_tokens = self.client.models.count_tokens(
+                        model=self.model, contents=self.conversation_history
+                    )
+                    print(Fore.YELLOW + f"[Total input tokens: {total_tokens.total_tokens}]")
 
                 for task in asyncio.all_tasks():
                     task.cancel()
                 break
 
             # Add to the conversation history the current user prompt
-            conversation_history.append(types.Content(role="user", parts=[types.Part(text=user_input)]))
+            self.conversation_history.append(types.Content(role="user", parts=[types.Part(text=user_input)]))
 
             # Call Gemini in non-blocking way
-            response, comp_time = await asyncio.to_thread(self.chat, robot, conversation_history)
-            model_content = response.candidates[0].content
-            conversation_history.append(model_content)
+            await asyncio.to_thread(self.chat, robot)

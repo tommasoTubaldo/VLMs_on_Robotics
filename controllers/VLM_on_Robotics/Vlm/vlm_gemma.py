@@ -1,6 +1,7 @@
 import time, re, json, os, asyncio, textwrap
 import numpy as np
 from PIL import Image
+from absl.logging import exception
 from google import genai
 from google.genai import types
 from colorama import Fore, Style, init
@@ -18,7 +19,7 @@ class GemmaAPI():
         prompt_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'prompts'))
 
         # Load prompt files
-        with open(os.path.join(prompt_dir, "system_instruction.txt"), "r") as f:
+        with open(os.path.join(prompt_dir, "system_and_tools_gemma.txt"), "r") as f:
             self.system_instruction = f.read()
 
         self.conversation_history = (
@@ -62,6 +63,7 @@ class GemmaAPI():
         while True:
             input_prompt+=self.start_turn_model
 
+            # If an image is available, provide it to the model
             if input_image:
                 contents = [input_image, input_prompt]
             else:
@@ -75,63 +77,48 @@ class GemmaAPI():
             )
             end_time = time.time()
 
-            # Try to extract tool call (based on format: {"name": ..., "parameters": {...}})
-            tool_call_match = re.search(r'{\s*"name"\s*:\s*"[^"]+"\s*,\s*"parameters"\s*:\s*{[^}]*}}', response.text)
+            # Save the model response in memory
+            input_prompt += (response.text + self.end_turn)
 
+            # Try to extract tool call (based on format: ```tool_code```)
+            tool_call_match = re.search(r"```tool_code\s*(.*?)\s*```", response.text)
+
+            # Extract text response of the model
             if tool_call_match:
-                text_response = re.sub(r"''' json", "", response.text[:tool_call_match.start()]).strip()
+                text_response = response.text[:tool_call_match.start()].strip()
             else:
                 text_response = response.text
 
+            # If the model response contains text, print it
             if text_response:
-                # Print the model response
                 print(Fore.BLUE + "\nAssistant:" + Style.RESET_ALL)
                 print(textwrap.fill(text_response, width=100))
                 print(Fore.YELLOW + f"[Inference Time: {end_time - start_time:.4f} s]" + Style.RESET_ALL)
-                input_prompt+=(response.text + self.end_turn)
 
-            # If the response contains a function call, then execute the corresponding tool and save the call with the associated arguments
+            # If the model response contains a function call, then execute the corresponding tool and save the call with the associated arguments
             if tool_call_match:
-                try:
-                    tool_json = json.loads(tool_call_match.group(0))
-                    tool_name = tool_json["name"]
-                    tool_args = tool_json["parameters"]
+                # If 'response_completed' is called, terminate the current response
+                if re.search(r"response_completed\(\)",response.text[tool_call_match.start():].strip()):
+                    self.conversation_history = input_prompt
+                    return response.text, end_time - start_time
 
-                    if tool_name == "get_gps_position":
-                        gps = robot.get_gps_position(**tool_args)
-                        result = {"x": gps[0], "y": gps[1], "z": gps[2]}
-                        print(f"{Fore.MAGENTA}[Tool]{Style.RESET_ALL} GPS coordinates obtained: {result}")
+                # Execute the called function
+                tool_call = tool_call_match.group(1).strip()
+                result = eval("robot." + tool_call)
 
-                        input_prompt+=self.start_turn_user + f"Tool get_gps_position was called and returned: {result}" + self.end_turn
-
-                    elif tool_name == "get_image":
-                        result = robot.get_image(**tool_args)
-                        print(f"{Fore.MAGENTA}[Tool]{Style.RESET_ALL} Camera image obtained.")
-                        result = self.convert2_PIL_image(result, robot.camera.getWidth(), robot.camera.getHeight())
-
-                        input_image = result
-                        input_prompt+=self.start_turn_user + "Tool get_image was called and returned: [image captured]" + self.end_turn
-
-                    elif tool_name == "set_position":
-                        robot.set_position(**tool_args)
-                        print(f"{Fore.MAGENTA}[Tool]{Style.RESET_ALL} Wheel position set to {tool_args}")
-
-                        #contents.append(types.Content(role="model", parts=[types.Part(function_call=tool_call)]))
-                        #contents.append(types.Content(role="user", parts=[types.Part(text=f"Linear position of the wheels set to {tool_call.args}")]))
-
-                    elif tool_name == "set_velocity":
-                        robot.set_velocity(**tool_args)
-                        print(f"{Fore.MAGENTA}[Tool]{Style.RESET_ALL} Wheel velocity set to {tool_args}")
-
-                        input_prompt+=self.start_turn_user + f"Tool set_velocity was called and wheel velocity was set to: {tool_args}" + self.end_turn
-
-                    elif tool_name == "response_completed":
-                        # Append model reply before returning
-                        self.conversation_history = input_prompt
-                        return response, end_time - start_time
-
-                except (json.JSONDecodeError, KeyError) as e:
-                    print(f"Tool call parsing failed: {e}")
+                if re.search(r"get_gps_position\(\)", tool_call):
+                    input_prompt += self.start_turn_user + f'```tool_output\n{str(result).strip()}\n```' + self.end_turn
+                    print(f"{Fore.MAGENTA}[Tool]{Style.RESET_ALL} GPS coordinates obtained: {str(result).strip()}")
+                elif re.search(r"get_image\(\)", tool_call):
+                    input_image = self.convert2_PIL_image(result, robot.camera.getWidth(), robot.camera.getHeight())
+                    input_prompt += self.start_turn_user + '```tool_output\n[image captured]\n```' + self.end_turn
+                    print(f"{Fore.MAGENTA}[Tool]{Style.RESET_ALL} Camera image obtained.")
+                elif re.search(r"set_velocity\((.*?)\)", tool_call):
+                    args = re.search(r"set_velocity\((.*?)\)", tool_call).group(1).strip()
+                    input_prompt += self.start_turn_user + f'```tool_output\n[wheel velocity set to ({args})]\n```' + self.end_turn
+                    print(f"{Fore.MAGENTA}[Tool]{Style.RESET_ALL} Wheel velocity set to ({args})")
+                else:
+                    raise Exception(f"Unknown tool call: {tool_call}")
 
 
     async def chat_loop(self, robot):
@@ -142,6 +129,7 @@ class GemmaAPI():
 
         while True:
             user_input = await asyncio.to_thread(input, Fore.GREEN + "\n\nUser: " + Style.RESET_ALL)
+            #user_input =  "User: " + user_input.strip()
             user_input = user_input.strip()
 
             # Exit condition

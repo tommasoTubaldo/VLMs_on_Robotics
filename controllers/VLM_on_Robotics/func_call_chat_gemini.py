@@ -4,6 +4,9 @@ from Vlm.vlm_gemini import GeminiAPI
 from Robot_Routines.robot_routines import Robot_Routines
 init(autoreset=True)
 
+## Tasks:
+# 1. In the room there is a ball. What sport does it belong to?
+# 2. What breed is the dog?
 
 # Init
 robot = Robot_Routines()
