@@ -10,9 +10,8 @@ class GeminiAPI():
     def __init__(self, model, temperature:float = 0.7, max_tokens:int = 1e5, generate_with_tools:bool = True):
         self.model = model
 
-        # Load system behavior instructions from external text files
+        # Load system behavior instructions
         prompt_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'prompts'))
-
         with open(os.path.join(prompt_dir, "system_instruction.txt"), "r") as f:
             self.system_instruction = f.read()
 
@@ -296,20 +295,46 @@ class GeminiAPI():
         Generates a response using the current conversation history and tools.
 
         :param robot: Robot instance
-        :param conversation_history: List of types.
         :return: Prediction from Gemini
         """
         contents = list(self.conversation_history)
 
         while True:
-            # Call the model
-            start_time = time.time()
-            response = self.client.models.generate_content(
-                model=self.model,
-                config=self.config,
-                contents=contents
-            )
-            end_time = time.time()
+            # Binary exponential backoff parameters
+            max_retries = 10
+            retry_delay = 2  # seconds (initial delay)
+            retries = 0
+
+            # Handle 429 and 503 exceptions adopting a binary exponential backoff algorithm
+            while True:
+                try:
+                    start_time = time.time()
+                    response = self.client.models.generate_content(
+                        model=self.model,
+                        config=self.config,
+                        contents=contents
+                    )
+                    end_time = time.time()
+                    break
+                except Exception as e:
+                    if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                        if retries < max_retries:
+                            print(Fore.RED + f"[429 Error] Retrying in {retry_delay} seconds..." + Style.RESET_ALL)
+                            time.sleep(retry_delay)
+                            retries += 1
+                            retry_delay *= 2
+                        else:
+                            raise RuntimeError(f"Exceeded retry limit due to repeated Server errors: {e}")
+                    elif "503" in str(e) or "UNAVAILABLE" in str(e):
+                        if retries < max_retries:
+                            print(Fore.RED + f"[503 Error] Retrying in {retry_delay} seconds..." + Style.RESET_ALL)
+                            time.sleep(retry_delay)
+                            retries += 1
+                            retry_delay *= 2
+                        else:
+                            raise RuntimeError(f"Exceeded retry limit due to repeated Server errors: {e}")
+                    else:
+                        raise e
 
             # Check if tool call is made
             for part in response.candidates[0].content.parts:
@@ -361,7 +386,7 @@ class GeminiAPI():
 
                     elif tool_call.name == "response_completed":
                         self.conversation_history = contents
-                        return response, end_time - start_time
+                        return response
 
 
     async def chat_loop(self, robot):
@@ -379,6 +404,8 @@ class GeminiAPI():
                 print(Fore.CYAN + "\nSession ended.")
 
                 if self.conversation_history:
+                    self.conversation_history.append(types.Content(role="user", parts=[types.Part(text=self.system_instruction)]))
+
                     # Count input tokens from conversation history
                     total_tokens = self.client.models.count_tokens(
                         model=self.model, contents=self.conversation_history

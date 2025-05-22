@@ -22,11 +22,14 @@ class GemmaAPI():
         with open(os.path.join(prompt_dir, "system_and_tools_gemma.txt"), "r") as f:
             self.system_instruction = f.read()
 
-        self.conversation_history = (
-            self.start_turn_model
+        # Initialize the conversation history with the system instructions
+        self.system_instr_prompt = (
+            self.start_turn_user
             + self.system_instruction
             + self.end_turn
         )
+
+        self.conversation_history = ""
 
         # Define the config parameters for the model
         self.config = types.GenerateContentConfig(
@@ -65,9 +68,9 @@ class GemmaAPI():
 
             # If an image is available, provide it to the model
             if input_image:
-                contents = [input_image, input_prompt]
+                contents = [input_image, self.system_instr_prompt + input_prompt]
             else:
-                contents = input_prompt
+                contents = self.system_instr_prompt + input_prompt
 
             # Generate response from the model and measure inference time
             start_time = time.time()
@@ -129,7 +132,6 @@ class GemmaAPI():
 
         while True:
             user_input = await asyncio.to_thread(input, Fore.GREEN + "\n\nUser: " + Style.RESET_ALL)
-            #user_input =  "User: " + user_input.strip()
             user_input = user_input.strip()
 
             # Exit condition
@@ -148,8 +150,7 @@ class GemmaAPI():
                 break
 
             # Add to the conversation history the current user prompt
-            self.conversation_history+=self.start_turn_user + user_input + self.end_turn
-            #self.conversation_history += f"\n\nUser: {user_input}"
+            self.conversation_history += self.start_turn_user + user_input + self.end_turn
 
             # Call Gemma in non-blocking way
             await asyncio.to_thread(self.chat, robot)
