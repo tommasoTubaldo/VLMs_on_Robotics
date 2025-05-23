@@ -318,6 +318,14 @@ class GeminiAPI():
                     break
                 except Exception as e:
                     if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                        # Stop the robot
+                        robot.set_velocity(**tool_call.args)
+                        print(f"{Fore.MAGENTA}[Tool]{Style.RESET_ALL} Wheel velocity set to {tool_call.args}")
+
+                        # Append function call and result of the function execution to contents
+                        contents.append(types.Content(role="model", parts=[types.Part(function_call=tool_call)]))
+                        contents.append(types.Content(role="user", parts=[types.Part(text=f"Linear velocity of the wheels set to {tool_call.args}")]))
+
                         if retries < max_retries:
                             print(Fore.RED + f"[429 Error] Retrying in {retry_delay} seconds..." + Style.RESET_ALL)
                             time.sleep(retry_delay)
@@ -325,6 +333,7 @@ class GeminiAPI():
                             retry_delay *= 2
                         else:
                             raise RuntimeError(f"Exceeded retry limit due to repeated Server errors: {e}")
+
                     elif "503" in str(e) or "UNAVAILABLE" in str(e):
                         if retries < max_retries:
                             print(Fore.RED + f"[503 Error] Retrying in {retry_delay} seconds..." + Style.RESET_ALL)
