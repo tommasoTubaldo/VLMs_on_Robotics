@@ -1,6 +1,7 @@
-import os, time, io, asyncio, base64, textwrap
+import os, time, io, asyncio, base64, textwrap, json, re
 import numpy as np
 from PIL import Image
+from aiohttp import ClientError
 from google import genai
 from google.genai import types
 from colorama import Fore, Style, init
@@ -119,7 +120,6 @@ class GeminiAPI():
         # Configure the client
         self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-
     def convert_bgra_2_PIL_image(self, image, img_width, img_height):
         """
         Converts BGRA images to PIL Images
@@ -136,7 +136,6 @@ class GeminiAPI():
         np_image_rgb = np_image[:, :, [2, 1, 0]]  # Swap B and R channels (BGR → RGB)
 
         return Image.fromarray(np_image_rgb)  # Convert NumPy array to PIL Image
-
 
     def convert_bgra_2_base64(self, image: bytes, img_width: int, img_height: int, format: str = "JPEG"):
         """
@@ -181,7 +180,6 @@ class GeminiAPI():
 
         except Exception as e:
             raise RuntimeError(f"Error converting image to base64: {str(e)}")
-
 
     def generate(self, robot, prompt, image:Image.Image = None):
         """
@@ -289,6 +287,21 @@ class GeminiAPI():
 
         return final_response, comp_time
 
+    def parse_retry_delay(self, e):
+        """
+        Extracts the retry delay in seconds from a ClientError.
+        Defaults to 30s if not found.
+        """
+        try:
+            error_data = json.loads(str(e).split("RESOURCE_EXHAUSTED.", 1)[-1])
+            for detail in error_data.get("error", {}).get("details", []):
+                if detail.get("@type", "").endswith("RetryInfo"):
+                    retry_str = detail.get("retryDelay", "30s")
+                    seconds = int(re.match(r"(\d+)", retry_str).group(1))
+                    return seconds
+        except Exception:
+            pass
+        return 30
 
     def chat(self, robot):
         """
@@ -306,6 +319,7 @@ class GeminiAPI():
             retries = 0
 
             # Handle 429 and 503 exceptions adopting a binary exponential backoff algorithm
+            robot_stopped = False
             while True:
                 try:
                     start_time = time.time()
@@ -319,14 +333,17 @@ class GeminiAPI():
                 except Exception as e:
                     if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
                         # Stop the robot
-                        robot.set_velocity(**tool_call.args)
-                        print(f"{Fore.MAGENTA}[Tool]{Style.RESET_ALL} Wheel velocity set to {tool_call.args}")
+                        if not robot_stopped:
+                            robot.set_velocity(0,0)
+                            print(f"{Fore.MAGENTA}[Tool]{Style.RESET_ALL} Wheel velocity set to (0,0)")
 
-                        # Append function call and result of the function execution to contents
-                        contents.append(types.Content(role="model", parts=[types.Part(function_call=tool_call)]))
-                        contents.append(types.Content(role="user", parts=[types.Part(text=f"Linear velocity of the wheels set to {tool_call.args}")]))
+                            # Append function call and result of the function execution to contents
+                            contents.append(types.Content(role="model", parts=[types.Part(function_call=tool_call)]))
+                            contents.append(types.Content(role="user", parts=[types.Part(text=f"Linear velocity of the wheels set to (0,0)")]))
 
+                        robot_stopped = True
                         if retries < max_retries:
+                            # Print the error code and wait retry_delay
                             print(Fore.RED + f"[429 Error] Retrying in {retry_delay} seconds..." + Style.RESET_ALL)
                             time.sleep(retry_delay)
                             retries += 1
@@ -336,6 +353,7 @@ class GeminiAPI():
 
                     elif "503" in str(e) or "UNAVAILABLE" in str(e):
                         if retries < max_retries:
+                            # Print the error code and wait retry_delay
                             print(Fore.RED + f"[503 Error] Retrying in {retry_delay} seconds..." + Style.RESET_ALL)
                             time.sleep(retry_delay)
                             retries += 1
@@ -349,7 +367,7 @@ class GeminiAPI():
             for part in response.candidates[0].content.parts:
                 if part.text:
                     print(Fore.BLUE + "\nAssistant:" + Style.RESET_ALL)
-                    print(textwrap.fill(part.text, width=100))
+                    print(textwrap.fill(part.text, width=70))
                     print(Fore.YELLOW + f"[Inference time: {end_time - start_time:.2f} s]" + Style.RESET_ALL)
 
                     contents.append(types.Content(role="user", parts=[types.Part(text=part.text)]))
@@ -396,7 +414,6 @@ class GeminiAPI():
                     elif tool_call.name == "response_completed":
                         self.conversation_history = contents
                         return response
-
 
     async def chat_loop(self, robot):
         """Handle Gemini chat interaction in a single loop.
